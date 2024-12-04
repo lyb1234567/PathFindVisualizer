@@ -3,15 +3,34 @@ package org.example;
 import javax.swing.*;
 import java.util.*;
 
+/**
+ * A* 算法实现类，用于查找最短路径
+ */
 public class AStarPathfinder implements Runnable {
     private GridPanel gridPanel;
     private JLabel statusLabel;
+    private JLabel visitedLabel;      // 显示已访问格子数
+    private JLabel pathLengthLabel;   // 显示最短路径格子数
     private JButton startButton;
     private JButton resetButton;
+    private int visitedCount = 0;     // 已访问格子计数器
+    private int pathLength = 0;       // 最短路径格子计数器
 
-    public AStarPathfinder(GridPanel gridPanel, JLabel statusLabel, JButton startButton, JButton resetButton) {
+    /**
+     * 构造方法
+     *
+     * @param gridPanel        网格面板
+     * @param statusLabel      状态标签
+     * @param visitedLabel     已访问格子数标签
+     * @param pathLengthLabel  最短路径格子数标签
+     * @param startButton      开始按钮
+     * @param resetButton      重置按钮
+     */
+    public AStarPathfinder(GridPanel gridPanel, JLabel statusLabel, JLabel visitedLabel, JLabel pathLengthLabel, JButton startButton, JButton resetButton) {
         this.gridPanel = gridPanel;
         this.statusLabel = statusLabel;
+        this.visitedLabel = visitedLabel;
+        this.pathLengthLabel = pathLengthLabel;
         this.startButton = startButton;
         this.resetButton = resetButton;
     }
@@ -29,6 +48,7 @@ public class AStarPathfinder implements Runnable {
 
         statusLabel.setText("状态: 搜索中...");
 
+        // 优先队列，按照 F 值排序
         PriorityQueue<Node> openSet = new PriorityQueue<>(Comparator.comparingInt(n -> n.f));
         Map<Cell, Cell> cameFrom = new HashMap<>();
         Map<Cell, Integer> gScore = new HashMap<>();
@@ -48,7 +68,11 @@ public class AStarPathfinder implements Runnable {
                 return;
             }
 
-            current.setVisited(true);
+            if (!current.isVisited()) { // 确保每个格子只计数一次
+                current.setVisited(true);
+                visitedCount++;
+                updateVisitedLabel(visitedCount);
+            }
 
             for (Cell neighbor : getNeighbors(current)) {
                 if (neighbor.isObstacle()) continue;
@@ -61,8 +85,10 @@ public class AStarPathfinder implements Runnable {
                     int fScore = tentativeG + heuristic(neighbor, end);
                     openSet.add(new Node(neighbor, tentativeG, fScore));
 
-                    if (!neighbor.isEnd()) {
+                    if (!neighbor.isEnd() && !neighbor.isVisited()) { // 仅在未访问且非终点时计数
                         neighbor.setVisited(true);
+                        visitedCount++;
+                        updateVisitedLabel(visitedCount);
                     }
                 }
             }
@@ -78,25 +104,46 @@ public class AStarPathfinder implements Runnable {
         enableButtons();
     }
 
+    /**
+     * 回溯路径并更新路径长度
+     *
+     * @param cameFrom 回溯映射
+     * @param current  当前格子
+     */
     private void reconstructPath(Map<Cell, Cell> cameFrom, Cell current) {
+        pathLength = 0; // 重置路径长度计数
         while (cameFrom.containsKey(current)) {
             current = cameFrom.get(current);
             if (!current.isStart()) {
                 current.setPath(true);
-            }
-            try {
-                Thread.sleep(50); // 控制动画速度
-            } catch (InterruptedException e) {
-                e.printStackTrace();
+                pathLength++;
+                updatePathLengthLabel(pathLength);
+                try {
+                    Thread.sleep(50); // 控制动画速度
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
+    /**
+     * 启发式函数，使用曼哈顿距离
+     *
+     * @param a 格子 A
+     * @param b 格子 B
+     * @return 曼哈顿距离
+     */
     private int heuristic(Cell a, Cell b) {
-        // 使用曼哈顿距离作为启发式函数
         return Math.abs(a.getRow() - b.getRow()) + Math.abs(a.getCol() - b.getCol());
     }
 
+    /**
+     * 获取邻居格子
+     *
+     * @param cell 当前格子
+     * @return 邻居格子列表
+     */
     private List<Cell> getNeighbors(Cell cell) {
         List<Cell> neighbors = new ArrayList<>();
         int row = cell.getRow();
@@ -115,6 +162,9 @@ public class AStarPathfinder implements Runnable {
         return neighbors;
     }
 
+    /**
+     * 启用开始和重置按钮
+     */
     private void enableButtons() {
         SwingUtilities.invokeLater(() -> {
             startButton.setEnabled(true);
@@ -122,10 +172,35 @@ public class AStarPathfinder implements Runnable {
         });
     }
 
+    /**
+     * 更新已访问格子数标签
+     *
+     * @param count 已访问格子数
+     */
+    private void updateVisitedLabel(int count) {
+        SwingUtilities.invokeLater(() -> {
+            visitedLabel.setText("已访问格子数: " + count);
+        });
+    }
+
+    /**
+     * 更新最短路径格子数标签
+     *
+     * @param count 最短路径格子数
+     */
+    private void updatePathLengthLabel(int count) {
+        SwingUtilities.invokeLater(() -> {
+            pathLengthLabel.setText("最短路径格子数: " + count);
+        });
+    }
+
+    /**
+     * 节点类，包含格子及其 G 和 F 值
+     */
     private class Node {
         Cell cell;
-        int g; // 代价
-        int f; // 总估价
+        int g; // 从起点到当前节点的实际代价
+        int f; // 总估价（F = G + H）
 
         public Node(Cell cell, int g, int f) {
             this.cell = cell;
